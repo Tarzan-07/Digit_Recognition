@@ -1,3 +1,6 @@
 data/
 *.png
-*.tar.gz
+*.tar.gz\
+*.log
+*.vscode
+sample_data.py
