@@ -47,7 +47,7 @@ def train():
                 print(f'[Epoch {epoch + 1}, Batch {i + 1}] loss: {running_loss / 100:.3f}')
                 running_loss = 0.0
             
-    torch.save(model.state_dict(), 'final_proj.pth')
+    torch.save(model.state_dict(), 'final_project.pth')
     print(f'training completed.....')
 
 if __name__ == '__main__':
