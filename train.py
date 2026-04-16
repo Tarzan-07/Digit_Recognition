@@ -24,7 +24,7 @@ def train():
     test_set = SVHN('test')
     test_loader = DataLoader(test_set, batch_size=64, shuffle=True)
 
-    model = SVNHCNN().to(device=device)
+    model = SVNHCNN(num_layers= 10, kernel_size=3, padding=1).to(device=device)
     optimizer = optim.Adam(model.parameters(), lr=0.01)
     criterion = nn.CrossEntropyLoss()
 

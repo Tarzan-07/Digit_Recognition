@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import os
 
 class SVNHCNN(nn.Module):
-    def __init__(self, num_layers):
+    def __init__(self, num_layers, kernel_size, padding):
         # super().__init__(*args, **kwargs)
 
         self.num_layer = num_layers
