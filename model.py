@@ -3,21 +3,22 @@ import torch.nn as nn
 import torch.nn.functional as F
 import os
 
-class SVNHCNN(nn.Module):
+class SVNH(nn.Module):
     def __init__(self, num_layers, kernel_size, padding):
-        # super().__init__(*args, **kwargs)
+        super(SVNH, self).__init__()
 
         self.num_layer = num_layers
-
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1)
+        self.kernel_size = kernel_size
+        self.padding = padding
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=self.kernel_size, padding=self.padding)
+        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=self.kernel_size, padding=self.padding)
 
         self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        self.conv3 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=self.kernel_size, padding=self.padding)
         self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        self.fc1 = nn.Linear(128*8*8, 512)
+        self.fc1 = nn.Linear(128*16*16, 512)
         self.fc2 = nn.Linear(512, 10)
 
         self.dropout = nn.Dropout(0.5)
@@ -32,7 +33,7 @@ class SVNHCNN(nn.Module):
         x = self.pool2(x)
         x = self.dropout(x)
         
-        x = x.view(-1, 128 * 8 * 8) # Flatten
+        x = x.view(-1, 128 * 16 * 16) # Flatten
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
         x = self.fc2(x)

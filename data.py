@@ -12,7 +12,7 @@ import h5py
 from PIL import Image
 
 DATA = "data/"
-TRAIN = "train/"
+TRAIN = "train/train"
 TEST = "test/"
 
 # def constructFile(file: str):
@@ -20,7 +20,7 @@ TEST = "test/"
 #         return DATA+TRAIN
 #     return DATA+TEST
 
-class SVHN(Dataset):
+class SVHNDataset(Dataset):
     """
     Implementation of DataLoader for SVHN dataset. 
     """
@@ -43,18 +43,13 @@ class SVHN(Dataset):
         self.num_samples = self.digit_name.shape[0]
         self.transform = transform
 
-    def _get_name(self, base_path, n):
+    def _get_name(self, n):
         """
         Helper function to extract the file name of the n-th image. 
         """
-        try:
-            filename = f"{n}.png" or f"{n}.jpg"
-        except Exception as e:
-            print(f"Unable to open image. File name format should be n.png or n.jpg: {e}")
-
-        return filename
+        return f"{n+1}.png"
     
-    def _get_bbox(self, base_path, filename, n):
+    def _get_bbox(self, n):
         bbox_ref = self.bbox[n][0]
         bbox_data = self.file[bbox_ref]
 
@@ -84,10 +79,17 @@ class SVHN(Dataset):
         in this function. 
         """
 
+        # if index == 0:
+        #     index += 1
         img_name = self._get_name(index)
         boundary = self._get_bbox(index)
+        if any(not isinstance(v, list) for v in boundary.values()):
+        # if any(boundary.values())
+            new_idx = (index + 1)%(len(self))
+            return self.__getitem__(new_idx)
+        # print(f"boundary is {boundary}")
 
-        img_path = self.file_path + f"{img_name}"
+        img_path = os.path.join(self.file_path, img_name)
         image = Image.open(img_path)
 
         left = min(boundary['left'])

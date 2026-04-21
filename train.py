@@ -4,9 +4,9 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, Dataset
-from model import SVNHCNN
+from model import SVNH
 from tqdm import tqdm
-from data import SVHN
+from data import SVHNDataset
 
 def train():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -18,13 +18,13 @@ def train():
     ])
     
     
-    train_set = SVHN('train')
+    train_set = SVHNDataset('train')
     train_loader = DataLoader(train_set, batch_size=64, shuffle=True)
 
-    test_set = SVHN('test')
+    test_set = SVHNDataset('test')
     test_loader = DataLoader(test_set, batch_size=64, shuffle=True)
 
-    model = SVNHCNN(num_layers= 10, kernel_size=3, padding=1).to(device=device)
+    model = SVNH(num_layers= 10, kernel_size=3, padding=1).to(device=device)
     optimizer = optim.Adam(model.parameters(), lr=0.01)
     criterion = nn.CrossEntropyLoss()
 
