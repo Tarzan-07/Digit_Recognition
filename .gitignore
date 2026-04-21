@@ -4,3 +4,6 @@ data/
 *.log
 *.vscode
 sample_data.py
+*pyc
+*pth
+*json
