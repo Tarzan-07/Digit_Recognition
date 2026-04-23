@@ -13,9 +13,10 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from PIL import Image
+from tqdm import tqdm
 
 from model import SVNH
-from data import SVHNDataset
+from preprocess import SVHNDataset
 
 DEFAULT_CONFIG_PATH = "config.yaml"
 DEFAULT_MODEL_PATH = "final_project.pth"
@@ -32,6 +33,7 @@ def load_config(config_path: str):
 
 def get_transforms():
     return transforms.Compose([
+        transforms.Resize((32, 32)),
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ])
@@ -69,6 +71,9 @@ def evaluate(model: nn.Module, data_loader: DataLoader, device: torch.device):
             correct += (preds == labels).sum().item()
             total += labels.size(0)
 
+        print(f"Correct: {correct}")
+        print(f"total: {total}")
+
     return correct / total if total > 0 else 0.0
 
 
@@ -77,7 +82,7 @@ def train(model: nn.Module, train_loader: DataLoader, test_loader: DataLoader, d
     optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
 
-    for epoch in range(1, epochs + 1):
+    for epoch in tqdm(range(1, epochs + 1), desc="Training loop"):
         model.train()
         running_loss = 0.0
 
@@ -110,7 +115,7 @@ def infer(model: nn.Module, image_path: str, device: torch.device):
 
     model.eval()
     image = Image.open(image_path).convert("RGB")
-    image = image.resize((64, 64))
+    image = image.resize((32, 32))
     image = get_transforms()(image)
     image = image.unsqueeze(0).to(device)
 

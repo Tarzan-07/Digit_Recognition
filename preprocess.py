@@ -20,10 +20,10 @@ class SVHNDataset(Dataset):
 
         if self.split == 'train':
             self.file_path = os.path.join(DATA, TRAIN)
-            self.meta_data_path = os.path.join(self.file_path, 'digitStruct.mat')
         else:
             self.file_path = os.path.join(DATA, TEST)
 
+        self.meta_data_path = os.path.join(self.file_path, 'digitStruct.mat')
         self.meta_data = h5py.File(name=self.meta_data_path, mode='r')
 
         try:

@@ -18,7 +18,7 @@ class SVNH(nn.Module):
         self.conv3 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=self.kernel_size, padding=self.padding)
         self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        self.fc1 = nn.Linear(128*16*16, 512)
+        self.fc1 = nn.Linear(128*8*8, 512)
         self.fc2 = nn.Linear(512, 10)
 
         self.dropout = nn.Dropout(0.5)
@@ -33,7 +33,7 @@ class SVNH(nn.Module):
         x = self.pool2(x)
         x = self.dropout(x)
         
-        x = x.view(-1, 128 * 16 * 16) # Flatten
+        x = x.view(-1, 128 * 8 * 8)
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
         x = self.fc2(x)
