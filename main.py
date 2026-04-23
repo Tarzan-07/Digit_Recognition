@@ -114,16 +114,21 @@ def infer(model: nn.Module, image_path: str, device: torch.device):
         raise FileNotFoundError(f"Inference image not found: {image_path}")
 
     model.eval()
-    image = Image.open(image_path).convert("RGB")
-    image = image.resize((32, 32))
-    image = get_transforms()(image)
-    image = image.unsqueeze(0).to(device)
-
-    with torch.no_grad():
-        outputs = model(image)
-        predicted = torch.argmax(outputs, dim=1).item()
-
-    return predicted
+    cropped_digits = SVHNDataset.get_cropped_digits(image_path, transform=get_transforms())
+    
+    predictions = []
+    for digit_tensor, true_label in cropped_digits:
+        digit_tensor = digit_tensor.unsqueeze(0).to(device)
+        with torch.no_grad():
+            outputs = model(digit_tensor)
+            predicted = torch.argmax(outputs, dim=1).item()
+            predictions.append((predicted, true_label))
+    
+    # Print results
+    for i, (pred, true) in enumerate(predictions):
+        print(f"Digit {i+1}: Predicted {pred}, True {true}")
+    
+    return predictions
 
 
 def parse_args():
