@@ -1,7 +1,7 @@
 import torch
 import yaml
 from preprocess import SVHNDataset
-from model import VanillaCNN
+from model import VanillaCNN, ResNet, ResidualBlocks
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
@@ -24,6 +24,7 @@ from sklearn.metrics import (
     ConfusionMatrixDisplay
 )
 from sklearn.preprocessing import label_binarize 
+
 
 load_dotenv()
 
@@ -61,10 +62,13 @@ def build_model(config: dict):
     if model_name == 'VanillaCNN':
         return VanillaCNN(
             in_channels=config['model_config']['in_channels'],
+            out_channels=config['model_config']['out_channels'],
             kernel=config['model_config']['kernel'],
             stride=config['model_config']['stride'],
             padding=config['model_config']['padding']
         )
+    elif model_name == 'ResNet':
+        return ResNet(ResidualBlocks, [2, 2, 2, 2], num_classes=10)
     else:
         raise ValueError(f"Not a valid model.")
 
