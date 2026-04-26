@@ -1,0 +1,15 @@
+CNN:
+  name: VanillaCNN
+  model_config:
+    in_channels: 3   # Ensure this is 3 for SVHN (RGB), your YAML had 16
+    kernel: [3, 3]   # Changed from (3,3)
+    stride: 1
+    padding: 'same'
+  training_config:
+    lr: 0.001
+    batch_size: 64
+    shuffle: True
+    epochs: 10
+  test_config:
+    batch_size: 64
+    shuffle: False   # Usually False for testing/evaluation

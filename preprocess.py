@@ -5,10 +5,11 @@ from torchvision.datasets import SVHN
 import os
 import h5py
 from scipy.io import loadmat
+from PIL import Image
 
 DATA_DIR = "./data"
-TRAIN_DIR = os.path.join(DATA_DIR, "TRAIN")
-TEST_DIR = os.path.join(DATA_DIR, "TEST")
+TRAIN_FILE = os.path.join(DATA_DIR, "TRAIN", "train_32x32.mat")
+TEST_FILE = os.path.join(DATA_DIR, "TEST", "test_32x32.mat")
 
 
 class SVHNDataset(Dataset):
@@ -16,21 +17,23 @@ class SVHNDataset(Dataset):
         # super().__init__()
         self.split = split
         self.transform = transform
-        self.root_path = TRAIN_DIR if self.split == 'train' else TEST_DIR
+        self.root_path = TRAIN_FILE if self.split == 'train' else TEST_FILE
         self.data = loadmat(self.root_path)
         self.images = self.data['X']
-        self.labels = self.data['y'].squeeze(0)
-        self.labels[self.labels == 10] == 0
+        self.labels = self.data['y'].squeeze().astype(int)
+        self.labels[self.labels == 10] = 0
 
     def __len__(self):
-        return len(self.images.shape[3])
+        return self.images.shape[3]
 
     def __getitem__(self, index):
 
         img = self.images[:, :, :, index]
         label = int(self.labels[index])
 
-        img = torch.from_numpy(img).permute(2, 0, 1).float()/255.0
+        # img = torch.from_numpy(img).permute(2, 0, 1).float()/255.0
+
+        img = Image.fromarray(img)
 
         if self.transform:
             img = self.transform(img)
