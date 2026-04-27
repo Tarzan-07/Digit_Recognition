@@ -7,6 +7,7 @@ CNN:
     kernel: [3, 3]   # Changed from (3,3)
     stride: 1
     padding: 'same'
+    num_layers: 4 # Currently only used by DACNN
   training_config:
     lr: 0.001
     batch_size: 64

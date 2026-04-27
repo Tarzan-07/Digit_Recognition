@@ -73,7 +73,7 @@ class ChannelAttention(nn.Module):
         return x * w
 
 class DACNN(nn.Module):
-    def __init__(self, num_classes=10):
+    def __init__(self, num_layers, num_classes=10):
         super().__init__()
 
         self.init_conv = nn.Sequential(
@@ -82,9 +82,9 @@ class DACNN(nn.Module):
             nn.ReLU()
         )
 
-        self.block1 = DenseAttnBlock(in_channels=32, growth=16, num_layers=3)
-        self.block2 = DenseAttnBlock(in_channels=self.block1.out_channels, growth=16, num_layers=3)
-        self.block3 = DenseAttnBlock(in_channels=self.block2.out_channels, growth=16, num_layers=3)
+        self.block1 = DenseAttnBlock(in_channels=32, growth=16, num_layers=num_layers)
+        self.block2 = DenseAttnBlock(in_channels=self.block1.out_channels, growth=16, num_layers=num_layers)
+        self.block3 = DenseAttnBlock(in_channels=self.block2.out_channels, growth=16, num_layers=num_layers)
 
         self.channel_attn = ChannelAttention(self.block3.out_channels, reduction=2)
         self.pool = nn.AdaptiveAvgPool2d(1)

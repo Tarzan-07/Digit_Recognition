@@ -99,7 +99,7 @@ def build_model(config: dict):
     elif model_name == 'ResNet':
         return ResNet(ResidualBlocks, [2, 2, 2, 2], num_classes=10)
     elif model_name == 'DACNN':
-        return DACNN(num_classes=10)
+        return DACNN(config['num_layers'], num_classes=10)
     elif model_name == 'VGG16':
         return VGG16Model(num_classes=11)
     else:
