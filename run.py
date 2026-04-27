@@ -53,15 +53,28 @@ def get_device():
         return torch.device(device_type)
     return torch.device('cpu')
 
-def get_transform():
-    return transforms.Compose([
-        transforms.Resize((32, 32)),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    ])
+def get_transform(model_name):
+    if model_name == "VGG16":
+        return transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                (0.485, 0.456, 0.406),
+                (0.229, 0.224, 0.225)
+            )
+        ])
+    else:
+        return transforms.Compose([
+            transforms.Resize((32, 32)),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                (0.5, 0.5, 0.5),
+                (0.5, 0.5, 0.5)
+            )
+        ])
 
-def build_dataloader(split, batch_size, shuffle):
-    dataset = SVHNDataset(split=split, transform=get_transform())
+def build_dataloader(split, batch_size, shuffle, model_name):
+    dataset = SVHNDataset(split=split, transform=get_transform(model_name))
     return DataLoader(dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=2, pin_memory=torch.accelerator.is_available())
 
 def build_model(config: dict):
@@ -98,12 +111,12 @@ def get_metrics(predicted, actual):
 def train(model: nn.Module, model_name: str, config, device):
     epochs = config['training_config']['epochs']
     lr = config['training_config']['lr']
-    training_loader = build_dataloader(split='train', batch_size=config['training_config']['batch_size'], shuffle=config['training_config']['shuffle'])
+    training_loader = build_dataloader(split='train', batch_size=config['training_config']['batch_size'], shuffle=config['training_config']['shuffle'], model_name=model_name)
     criterion = nn.CrossEntropyLoss()
     optim = Adam(model.parameters(), lr=lr)
     model = model.to(device)
     epoch_loss = []
-    
+    get_transform
     for epoch in tqdm(range(1, epochs+1), desc='Training loop'):
         running_loss = 0.0
         num_batches = 0
@@ -140,13 +153,13 @@ def train(model: nn.Module, model_name: str, config, device):
 
     torch.save(model.state_dict(), DEFAULT_MODEL_PATH)
 
-def evaluate(model_path, config, device):
+def evaluate(model_name, model_path, config, device):
     # model = torch.load(model_path)
     model = build_model(config)
     model.load_state_dict(torch.load(DEFAULT_MODEL_PATH, map_location=device))
     batch_size = config['test_config']['batch_size']
     shuffle = config['test_config']['shuffle']
-    test_loader = build_dataloader(split='test', batch_size=config['test_config']['batch_size'], shuffle=config['test_config']['shuffle'])
+    test_loader = build_dataloader(split='test', batch_size=config['test_config']['batch_size'], shuffle=config['test_config']['shuffle'], model_name=model_name)
     model = model.to(device)
     correct = 0; total = 0
 
@@ -196,7 +209,7 @@ def evaluate(model_path, config, device):
 
     return metrics
 
-def test(model_path, test_dir: Path, config, device):
+def test(model_name, model_path, test_dir: Path, config, device):
     # import os
 
     os.makedirs("graded_images", exist_ok=True)
@@ -206,7 +219,7 @@ def test(model_path, test_dir: Path, config, device):
     model.to(device)
     model.eval()
 
-    transform = get_transform()
+    transform = get_transform(model_name)
 
     for img_path in test_dir.glob("*.[jp][pn]g"):
         print(f"\nProcessing {img_path.name}")
@@ -276,12 +289,12 @@ def main():
         print("--- Starting Training ---")
         train(model, model_name, config, device)
 
-        metrics = evaluate(DEFAULT_MODEL_PATH, config, device)
+        metrics = evaluate(DEFAULT_MODEL_PATH, config, device, model_name=model_name)
         print(f"Final Test Accuracy: {metrics['accuracy']:.4f}")
 
     elif mode == 'test':
         print("--- Starting Testing ---")
-        test(model_path=DEFAULT_MODEL_PATH,test_dir=TEST_DIR,config=config, device=get_device())
+        test(model_name=model_name, model_path=DEFAULT_MODEL_PATH, test_dir=TEST_DIR, config=config, device=get_device())
         print("--- Completed Testing ---")
 
 if __name__ == "__main__":
