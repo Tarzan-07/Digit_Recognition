@@ -38,8 +38,16 @@ load_dotenv()
 
 TEST_DIR = Path('TEST/')
 DEFAULT_CONFIG_PATH = "config.yaml"
-DEFAULT_MODEL_PATH = "final_project.pth"
+MODEL_PREFIX = "final_project"
 RESULTS = "results"
+
+def get_model_path(model_name: str) -> str:
+    return f"{MODEL_PREFIX}_{model_name}.pth"
+
+
+def get_result_path(model_name: str, base_name: str) -> str:
+    return os.path.join(RESULTS, f"{base_name}_{model_name}.png")
+
 
 def get_device():
     # device = 'cpu'
@@ -152,14 +160,13 @@ def train(model: nn.Module, model_name: str, config, device):
     plt.legend()
 
     os.makedirs(RESULTS, exist_ok=True)
-    plt.savefig(os.path.join(RESULTS, 'training_loss_curve.png'))
+    plt.savefig(get_result_path(model_name, 'training_loss_curve'))
 
-    torch.save(model.state_dict(), DEFAULT_MODEL_PATH)
+    torch.save(model.state_dict(), get_model_path(model_name))
 
 def evaluate(model_name, model_path, config, device):
-    # model = torch.load(model_path)
     model = build_model(config)
-    model.load_state_dict(torch.load(DEFAULT_MODEL_PATH, map_location=device))
+    model.load_state_dict(torch.load(model_path, map_location=device))
     batch_size = config['test_config']['batch_size']
     shuffle = config['test_config']['shuffle']
     test_loader = build_dataloader(split='test', batch_size=config['test_config']['batch_size'], shuffle=config['test_config']['shuffle'], model_name=model_name)
@@ -193,11 +200,13 @@ def evaluate(model_name, model_path, config, device):
     metrics = get_metrics(y_pred, y_true)
     print(f"\nTest Metrics: {metrics}")
 
+    os.makedirs(RESULTS, exist_ok=True)
+
     plt.figure(figsize=(10, 8))
     cm = confusion_matrix(y_true, y_pred)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=range(10))
     disp.plot(cmap='Blues', values_format='d')
-    plt.savefig(os.path.join(RESULTS, 'confusion_matrix.png'))
+    plt.savefig(get_result_path(model_name, 'confusion_matrix'))
 
     y_true_bin = label_binarize(y_true, classes=range(10))
     plt.figure(figsize=(10, 6))
@@ -207,7 +216,7 @@ def evaluate(model_name, model_path, config, device):
     
     plt.xlabel('Recall'); plt.ylabel('Precision'); plt.title('PR Curves')
     plt.legend(); plt.grid(True)
-    plt.savefig(os.path.join(RESULTS, 'precision_recall_curve.png'))
+    plt.savefig(get_result_path(model_name, 'precision_recall_curve'))
     plt.close('all')
 
     return metrics
@@ -287,17 +296,18 @@ def main():
 
     model = build_model(config)
     mode = config['mode']
+    model_path = get_model_path(model_name)
 
     if mode == "train":
         print("--- Starting Training ---")
         train(model, model_name, config, device)
 
-        metrics = evaluate(DEFAULT_MODEL_PATH, config, device, model_name=model_name)
+        metrics = evaluate(model_name, model_path, config, device)
         print(f"Final Test Accuracy: {metrics['accuracy']:.4f}")
 
     elif mode == 'test':
         print("--- Starting Testing ---")
-        test(model_name=model_name, model_path=DEFAULT_MODEL_PATH, test_dir=TEST_DIR, config=config, device=get_device())
+        test(model_name=model_name, model_path=model_path, test_dir=TEST_DIR, config=config, device=get_device())
         print("--- Completed Testing ---")
 
 if __name__ == "__main__":
