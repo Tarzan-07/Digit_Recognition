@@ -32,6 +32,7 @@ from mser import (
 )
 import cv2
 from dacnn import DACNN
+from vgg import VGG16Model
 
 load_dotenv()
 
@@ -91,6 +92,8 @@ def build_model(config: dict):
         return ResNet(ResidualBlocks, [2, 2, 2, 2], num_classes=10)
     elif model_name == 'DACNN':
         return DACNN(num_classes=10)
+    elif model_name == 'VGG16':
+        return VGG16Model(num_classes=11)
     else:
         raise ValueError(f"Not a valid model.")
 
