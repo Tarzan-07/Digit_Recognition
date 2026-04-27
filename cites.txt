@@ -1,0 +1,8 @@
+@inproceedings{inproceedings,
+author = {Matijašević, Pavle and Mravik, Miloš},
+year = {2025},
+month = {01},
+pages = {531-535},
+title = {Handwritten Digit Recognition Using Convolutional Neural Networks and Big Data Processing},
+doi = {10.15308/Sinteza-2025-531-535}
+}

@@ -23,8 +23,15 @@ from sklearn.metrics import (
     confusion_matrix,
     ConfusionMatrixDisplay
 )
-from sklearn.preprocessing import label_binarize 
-
+from sklearn.preprocessing import label_binarize
+from mser import (
+    image_pyramid,
+    get_potential_regions,
+    extract_rois,
+    simple_nms
+)
+import cv2
+from dacnn import DACNN
 
 load_dotenv()
 
@@ -69,6 +76,8 @@ def build_model(config: dict):
         )
     elif model_name == 'ResNet':
         return ResNet(ResidualBlocks, [2, 2, 2, 2], num_classes=10)
+    elif model_name == 'DACNN':
+        return DACNN(num_classes=10)
     else:
         raise ValueError(f"Not a valid model.")
 
@@ -188,22 +197,73 @@ def evaluate(model_path, config, device):
     return metrics
 
 def test(model_path, test_dir: Path, config, device):
+    import os
+
+    os.makedirs("graded_images", exist_ok=True)
+
     model = build_model(config)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.to(device)
     model.eval()
 
     transform = get_transform()
+
     for img_path in test_dir.glob("*.[jp][pn]g"):
-        print(f"Processing {img_path.name}")
-        img = Image.open(img_path).convert('RGB')
-        img_t = transform(img).unsqueeze(0).to(device)
+        print(f"\nProcessing {img_path.name}")
 
-        with torch.no_grad():
-            output = model(img)
-            _, predicted = torch.max(output, 1)
+        pil_img = Image.open(img_path).convert('RGB')
+        image = np.array(pil_img)
 
-        print(f"Predicted number for {img_path} is: {output}")
+        all_boxes = []
+
+        for scaled_img, scale in image_pyramid(image):
+            boxes = get_potential_regions(scaled_img)
+
+            for (x, y, w, h) in boxes:
+                all_boxes.append((
+                    int(x / scale),
+                    int(y / scale),
+                    int(w / scale),
+                    int(h / scale)
+                ))
+
+        boxes = simple_nms(all_boxes)
+
+        rois = extract_rois(image, boxes)
+
+        predictions = []
+
+        for roi, (x, y, w, h) in rois:
+            roi_pil = Image.fromarray(roi)
+            roi_t = transform(roi_pil).unsqueeze(0).to(device)
+
+            with torch.no_grad():
+                output = model(roi_t)
+                probs = F.softmax(output, dim=1)
+                conf, pred = torch.max(probs, dim=1)
+
+            if conf.item() < 0.6:
+                continue
+
+            predictions.append((x, y, w, h, pred.item()))
+
+        predictions = sorted(predictions, key=lambda x: x[0])
+
+        digits = [str(p[4]) for p in predictions]
+        print(f"Predicted sequence: {''.join(digits)}")
+
+
+        vis_img = image.copy()
+
+        for (x, y, w, h, pred) in predictions:
+            cv2.rectangle(vis_img, (x, y), (x+w, y+h), (0, 255, 0), 1)
+            cv2.putText(vis_img, str(pred), (x, y-5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+
+        save_path = f"graded_images/{img_path.name}"
+        cv2.imwrite(save_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
+
+        print(f"Saved result → {save_path}")
 
 def main():
     with open('config.yaml', 'r') as file:
