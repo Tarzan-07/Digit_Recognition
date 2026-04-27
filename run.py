@@ -119,6 +119,48 @@ def get_metrics(predicted, actual):
         "f1": f1
     }
 
+def multiple_plots(config, device):
+    models = ["VanillaCNN", "ResNet", "DACNN", "VGG16"]
+
+    all_losses = {}
+    all_accs = {}
+
+    for model_name in models:
+        print(f"\nTraining {model_name}...")
+
+        config['name'] = model_name
+        model = build_model(config)
+
+        losses, accs = train(model, model_name, config, device)
+
+        all_losses[model_name] = losses
+        all_accs[model_name] = accs
+
+    # 🔥 Plot Loss
+    plt.figure(figsize=(10, 5))
+    for name, losses in all_losses.items():
+        plt.plot(losses, label=name)
+
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("Training Loss Comparison")
+    plt.legend()
+    os.makedirs("results", exist_ok=True)
+    plt.savefig("results/curves_loss.png")
+    plt.close()
+
+    # 🔥 Plot Accuracy
+    plt.figure(figsize=(10, 5))
+    for name, accs in all_accs.items():
+        plt.plot(accs, label=name)
+
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.title("Training Accuracy Comparison")
+    plt.legend()
+    plt.savefig("results/curves_accuracy.png")
+    plt.close()
+
 def train(model: nn.Module, model_name: str, config, device):
     epochs = config['training_config']['epochs']
     lr = config['training_config']['lr']
@@ -127,10 +169,13 @@ def train(model: nn.Module, model_name: str, config, device):
     optim = Adam(model.parameters(), lr=lr)
     model = model.to(device)
     epoch_loss = []
-    get_transform
+    epoch_acc = []
+
     for epoch in tqdm(range(1, epochs+1), desc='Training loop'):
         running_loss = 0.0
         num_batches = 0
+        correct = 0
+        total = 0
         model.train()
         for i, (images, labels) in enumerate(training_loader, 1):
             images = images.to(device)
@@ -139,6 +184,9 @@ def train(model: nn.Module, model_name: str, config, device):
             optim.zero_grad()
             outputs = model(images)
             loss = criterion(outputs, labels)
+            preds = torch.argmax(outputs, dim=1)
+            correct += (preds == labels).sum().item()
+            total += labels.size(0)
             loss.backward()
             optim.step()
 
@@ -150,6 +198,7 @@ def train(model: nn.Module, model_name: str, config, device):
 
         avg_epoch_loss_per_batch = running_loss/num_batches
         epoch_loss.append(avg_epoch_loss_per_batch)
+        epoch_acc.append(correct / total)
         print(f"Epoch [{epoch}/{epochs}], batch {i} -> average loss: {running_loss/num_batches:.4f}")
     
     plt.figure(figsize=(10,5))
@@ -163,6 +212,7 @@ def train(model: nn.Module, model_name: str, config, device):
     plt.savefig(get_result_path(model_name, 'training_loss_curve'))
 
     torch.save(model.state_dict(), get_model_path(model_name))
+    return epoch_loss, epoch_acc
 
 def evaluate(model_name, model_path, config, device):
     model = build_model(config)
