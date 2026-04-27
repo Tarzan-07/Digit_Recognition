@@ -27,7 +27,12 @@ class SpatialAttention(nn.Module):
     def __init__(self, in_channels):
         super().__init__()
 
-        self.conv = nn.Conv2d(in_channels=in_channels, out_channels=1, kernel_size=1)
+        # self.conv = nn.Conv2d(in_channels=in_channels, out_channels=1, kernel_size=1)
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels//2, 1),
+            nn.ReLU(),
+            nn.Conv2d(in_channels//2, 1, 1)
+        )
 
     def forward(self, x):
         attn = torch.sigmoid(self.conv(x))
@@ -39,14 +44,18 @@ class DenseAttnBlock(nn.Module):
 
         self.mod_list = nn.ModuleList()
         self.attn_list = nn.ModuleList()
+        channels = in_channels
+
         for _ in range(num_layers):
-            self.mod_list.append(DenseLayer(in_channels=in_channels, growth=growth))
-            self.attn_list.append(SpatialAttention(in_channels=in_channels))
-            in_channels += growth
+            self.mod_list.append(DenseLayer(channels, growth))
+            channels += growth
+            self.attn_list.append(SpatialAttention(channels))
+
+        self.out_channels = channels
 
     def forward(self, x):
-        for layers, attn in zip(self.mod_list, self.attn_list):
-            x = layers(x)
+        for layer, attn in zip(self.mod_list, self.attn_list):
+            x = layer(x)
             x = attn(x)
         return x
 
@@ -80,12 +89,17 @@ class DACNN(nn.Module):
         self.channel_attn = ChannelAttention(self.block3.out_channels, reduction=2)
         self.pool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Linear(self.block3.out_channels, num_classes)
+        self.pool1 = nn.MaxPool2d(2)
+        self.pool2 = nn.MaxPool2d(2)
+        self.dropout = nn.Dropout(0.3)
 
     def forward(self, x):
         x = self.init_conv(x)
 
         x = self.block1(x)
+        x = self.pool1(x)
         x = self.block2(x)
+        x = self.pool2(x)
         x = self.block3(x)
 
         x = self.channel_attn(x)
@@ -93,5 +107,6 @@ class DACNN(nn.Module):
         x = self.pool(x)
         x = torch.flatten(x, 1)
 
+        x = self.dropout(x)
         x = self.fc(x)
         return x

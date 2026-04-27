@@ -197,7 +197,7 @@ def evaluate(model_path, config, device):
     return metrics
 
 def test(model_path, test_dir: Path, config, device):
-    import os
+    # import os
 
     os.makedirs("graded_images", exist_ok=True)
 
@@ -228,9 +228,7 @@ def test(model_path, test_dir: Path, config, device):
                 ))
 
         boxes = simple_nms(all_boxes)
-
         rois = extract_rois(image, boxes)
-
         predictions = []
 
         for roi, (x, y, w, h) in rois:
@@ -248,13 +246,10 @@ def test(model_path, test_dir: Path, config, device):
             predictions.append((x, y, w, h, pred.item()))
 
         predictions = sorted(predictions, key=lambda x: x[0])
-
         digits = [str(p[4]) for p in predictions]
         print(f"Predicted sequence: {''.join(digits)}")
 
-
         vis_img = image.copy()
-
         for (x, y, w, h, pred) in predictions:
             cv2.rectangle(vis_img, (x, y), (x+w, y+h), (0, 255, 0), 1)
             cv2.putText(vis_img, str(pred), (x, y-5),
@@ -275,15 +270,19 @@ def main():
     print(f"Using device: {device} | Model: {model_name}")
 
     model = build_model(config)
-
-    mode = "train"
+    mode = config['mode']
 
     if mode == "train":
         print("--- Starting Training ---")
         train(model, model_name, config, device)
 
-    metrics = evaluate(DEFAULT_MODEL_PATH, config, device)
-    print(f"Final Test Accuracy: {metrics['accuracy']:.4f}")
+        metrics = evaluate(DEFAULT_MODEL_PATH, config, device)
+        print(f"Final Test Accuracy: {metrics['accuracy']:.4f}")
+
+    elif mode == 'test':
+        print("--- Starting Testing ---")
+        test(model_path=DEFAULT_MODEL_PATH,test_dir=TEST_DIR,config=config, device=get_device())
+        print("--- Completed Testing ---")
 
 if __name__ == "__main__":
     main()

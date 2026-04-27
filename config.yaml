@@ -1,5 +1,6 @@
 CNN:
-  name: ResNet # VanillaCNN
+  name: DACNN # VanillaCNN or DACNN
+  mode: train # test
   model_config:
     in_channels: 3   # Ensure this is 3 for SVHN (RGB), your YAML had 16
     out_channels: 32
@@ -10,7 +11,7 @@ CNN:
     lr: 0.001
     batch_size: 64
     shuffle: True
-    epochs: 10
+    epochs: 15
   test_config:
     batch_size: 64
     shuffle: False   # Usually False for testing/evaluation
