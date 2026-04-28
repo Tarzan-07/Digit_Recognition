@@ -1,18 +1,30 @@
 CNN:
-  name: DACNN # VanillaCNN or DACNN
+  name: all # VanillaCNN or ResNet or DACNN or VGG16 or all. all will work only in train mode
   mode: train # test
-  model_config:
-    in_channels: 3   # Ensure this is 3 for SVHN (RGB), your YAML had 16
-    out_channels: 32
-    kernel: [3, 3]   # Changed from (3,3)
-    stride: 1
-    padding: 'same'
-    num_layers: 4 # Currently only used by DACNN
+  # multiple_plots: True
+  model_configs:
+    VanillaCNN:
+      in_channels: 3
+      out_channels: 32
+      kernel: [3, 3]
+      stride: 1
+      padding: 'same'
+      epochs: 10
+    ResNet:
+      num_classes: 10
+      epochs: 8
+    DACNN:
+      num_classes: 10
+      epochs: 12
+      num_layers: 4
+    VGG16:
+      num_classes: 11
+      epochs: 8
+      num_layers: 4
   training_config:
     lr: 0.001
     batch_size: 64
     shuffle: True
-    epochs: 15
   test_config:
     batch_size: 64
     shuffle: False   # Usually False for testing/evaluation

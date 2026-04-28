@@ -86,24 +86,28 @@ def build_dataloader(split, batch_size, shuffle, model_name):
     dataset = SVHNDataset(split=split, transform=get_transform(model_name))
     return DataLoader(dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=2, pin_memory=torch.accelerator.is_available())
 
-def build_model(config: dict):
-    model_name = config['name']
+def get_sum_model_parameters(model: nn.Module):
+    trainable_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    return trainable_parameters
+
+def build_model(model_name: str, model_config: dict):
     if model_name == 'VanillaCNN':
-        return VanillaCNN(
-            in_channels=config['model_config']['in_channels'],
-            out_channels=config['model_config']['out_channels'],
-            kernel=config['model_config']['kernel'],
-            stride=config['model_config']['stride'],
-            padding=config['model_config']['padding']
+        model = VanillaCNN(
+            in_channels=model_config['in_channels'],
+            out_channels=model_config['out_channels'],
+            kernel=model_config['kernel'],
+            stride=model_config['stride'],
+            padding=model_config['padding']
         )
     elif model_name == 'ResNet':
-        return ResNet(ResidualBlocks, [2, 2, 2, 2], num_classes=10)
+        model = ResNet(ResidualBlocks, [2, 2, 2, 2], num_classes=model_config.get('num_classes', 10))
     elif model_name == 'DACNN':
-        return DACNN(config['num_layers'], num_classes=10)
+        model = DACNN(num_classes=model_config.get('num_classes', 10), num_layers=model_config.get('num_layers'))
     elif model_name == 'VGG16':
-        return VGG16Model(num_classes=11)
+        model = VGG16Model(num_classes=model_config.get('num_classes', 11))
     else:
-        raise ValueError(f"Not a valid model.")
+        raise ValueError(f"Not a valid model: {model_name}")
+    return model
 
 def get_metrics(predicted, actual):
     average_method = 'weighted'
@@ -129,14 +133,23 @@ def multiple_plots(config, device):
         print(f"\nTraining {model_name}...")
 
         config['name'] = model_name
-        model = build_model(config)
+        model, parameters = build_model(config)
 
         losses, accs = train(model, model_name, config, device)
 
         all_losses[model_name] = losses
         all_accs[model_name] = accs
 
-    # 🔥 Plot Loss
+    plt.figure(figsize=(10, 5))
+    plt.bar(parameters.keys(), parameters.values())
+    plt.xlabel('Models')
+    plt.ylabel('No. of trainable parameters')
+    plt.title('No. of trainable parameters for each model')
+    plt.legend()
+    os.makedirs('results', exist_ok=True)
+    plt.savefig('results/count_of_parameters.png')
+    plt.close()
+
     plt.figure(figsize=(10, 5))
     for name, losses in all_losses.items():
         plt.plot(losses, label=name)
@@ -149,7 +162,6 @@ def multiple_plots(config, device):
     plt.savefig("results/curves_loss.png")
     plt.close()
 
-    # 🔥 Plot Accuracy
     plt.figure(figsize=(10, 5))
     for name, accs in all_accs.items():
         plt.plot(accs, label=name)
@@ -162,7 +174,8 @@ def multiple_plots(config, device):
     plt.close()
 
 def train(model: nn.Module, model_name: str, config, device):
-    epochs = config['training_config']['epochs']
+    model_config = config['model_configs'][model_name]
+    epochs = model_config['epochs']
     lr = config['training_config']['lr']
     training_loader = build_dataloader(split='train', batch_size=config['training_config']['batch_size'], shuffle=config['training_config']['shuffle'], model_name=model_name)
     criterion = nn.CrossEntropyLoss()
@@ -215,7 +228,7 @@ def train(model: nn.Module, model_name: str, config, device):
     return epoch_loss, epoch_acc
 
 def evaluate(model_name, model_path, config, device):
-    model = build_model(config)
+    model = build_model(model_name, config['model_configs'][model_name])
     model.load_state_dict(torch.load(model_path, map_location=device))
     batch_size = config['test_config']['batch_size']
     shuffle = config['test_config']['shuffle']
@@ -276,7 +289,7 @@ def test(model_name, model_path, test_dir: Path, config, device):
 
     os.makedirs("graded_images", exist_ok=True)
 
-    model = build_model(config)
+    model = build_model(model_name, config['model_configs'][model_name])
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.to(device)
     model.eval()
@@ -342,23 +355,42 @@ def main():
 
     device = get_device()
     model_name = config.get('name', 'VanillaCNN')
+    mode = config['mode']
     print(f"Using device: {device} | Model: {model_name}")
 
-    model = build_model(config)
-    mode = config['mode']
-    model_path = get_model_path(model_name)
+    if mode == 'train':
+        if model_name == 'all':
+            print("--- Starting Training for all models ---")
+            for m_name in config['model_configs']:
+                print(f"Training {m_name}")
+                m_config = config['model_configs'][m_name]
+                model = build_model(m_name, m_config)
+                train(model, m_name, config, device)
+                m_path = get_model_path(m_name)
+                metrics = evaluate(m_name, m_path, config, device)
+                print(f"Final Test Accuracy for {m_name}: {metrics['accuracy']:.4f}")
+            return
 
-    if mode == "train":
-        print("--- Starting Training ---")
-        train(model, model_name, config, device)
+        else:
+            print("--- Starting Training ---")
+            model_config = config['model_configs'][model_name]
+            model = build_model(model_name, model_config)
+            model_path = get_model_path(model_name)
+            train(model, model_name, config, device)
 
-        metrics = evaluate(model_name, model_path, config, device)
-        print(f"Final Test Accuracy: {metrics['accuracy']:.4f}")
+            metrics = evaluate(model_name, model_path, config, device)
+            print(f"Final Test Accuracy: {metrics['accuracy']:.4f}")
 
     elif mode == 'test':
+        if model_name == 'all':
+            raise ValueError("Please use individual models for testing. Options are VanillaCNN, ResNet, DACNN and VGG16.")
         print("--- Starting Testing ---")
+        model_config = config['model_configs'][model_name]
+        model_path = get_model_path(model_name)
         test(model_name=model_name, model_path=model_path, test_dir=TEST_DIR, config=config, device=get_device())
         print("--- Completed Testing ---")
+
+    
 
 if __name__ == "__main__":
     main()
