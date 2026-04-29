@@ -28,8 +28,10 @@ from mser import (
     image_pyramid,
     get_potential_regions,
     extract_rois,
-    simple_nms
+    simple_nms,
+    normalize_digit
 )
+from mser2 import load_the_f_image_and_test
 import cv2
 from dacnn import DACNN
 from vgg import VGG16Model
@@ -90,6 +92,25 @@ def get_sum_model_parameters(model: nn.Module):
     trainable_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     return trainable_parameters
 
+
+def box_iou(box1, box2):
+    x1, y1, w1, h1 = box1
+    x2, y2, w2, h2 = box2
+
+    xa = max(x1, x2)
+    ya = max(y1, y2)
+    xb = min(x1 + w1, x2 + w2)
+    yb = min(y1 + h1, y2 + h2)
+
+    inter_w = max(0, xb - xa)
+    inter_h = max(0, yb - ya)
+    inter_area = inter_w * inter_h
+
+    area1 = w1 * h1
+    area2 = w2 * h2
+    union_area = area1 + area2 - inter_area
+    return inter_area / union_area if union_area > 0 else 0
+
 def build_model(model_name: str, model_config: dict):
     if model_name == 'VanillaCNN':
         model = VanillaCNN(
@@ -123,55 +144,6 @@ def get_metrics(predicted, actual):
         "f1": f1
     }
 
-def multiple_plots(config, device):
-    models = ["VanillaCNN", "ResNet", "DACNN", "VGG16"]
-
-    all_losses = {}
-    all_accs = {}
-
-    for model_name in models:
-        print(f"\nTraining {model_name}...")
-
-        config['name'] = model_name
-        model, parameters = build_model(config)
-
-        losses, accs = train(model, model_name, config, device)
-
-        all_losses[model_name] = losses
-        all_accs[model_name] = accs
-
-    plt.figure(figsize=(10, 5))
-    plt.bar(parameters.keys(), parameters.values())
-    plt.xlabel('Models')
-    plt.ylabel('No. of trainable parameters')
-    plt.title('No. of trainable parameters for each model')
-    plt.legend()
-    os.makedirs('results', exist_ok=True)
-    plt.savefig('results/count_of_parameters.png')
-    plt.close()
-
-    plt.figure(figsize=(10, 5))
-    for name, losses in all_losses.items():
-        plt.plot(losses, label=name)
-
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.title("Training Loss Comparison")
-    plt.legend()
-    os.makedirs("results", exist_ok=True)
-    plt.savefig("results/curves_loss.png")
-    plt.close()
-
-    plt.figure(figsize=(10, 5))
-    for name, accs in all_accs.items():
-        plt.plot(accs, label=name)
-
-    plt.xlabel("Epoch")
-    plt.ylabel("Accuracy")
-    plt.title("Training Accuracy Comparison")
-    plt.legend()
-    plt.savefig("results/curves_accuracy.png")
-    plt.close()
 
 def train(model: nn.Module, model_name: str, config, device):
     model_config = config['model_configs'][model_name]
@@ -284,7 +256,84 @@ def evaluate(model_name, model_path, config, device):
 
     return metrics
 
-def test(model_name, model_path, test_dir: Path, config, device):
+# def test(model_name, model_path, test_dir: Path, config, device):
+#     # import os
+
+#     os.makedirs("graded_images", exist_ok=True)
+
+#     model = build_model(model_name, config['model_configs'][model_name])
+#     model.load_state_dict(torch.load(model_path, map_location=device))
+#     model.to(device)
+#     model.eval()
+
+#     transform = get_transform(model_name)
+
+#     for img_path in test_dir.glob("*.[jp][pn]g"):
+#         print(f"\nProcessing {img_path.name}")
+
+#         pil_img = Image.open(img_path).convert('RGB')
+#         image = np.array(pil_img)
+
+#         all_boxes = []
+
+#         for scaled_img, scale in image_pyramid(image):
+#             boxes = get_potential_regions(scaled_img)
+
+#             for (x, y, w, h) in boxes:
+#                 all_boxes.append((
+#                     int(x / scale),
+#                     int(y / scale),
+#                     int(w / scale),
+#                     int(h / scale)
+#                 ))
+
+#         boxes = simple_nms(all_boxes)
+#         boxes = sorted(boxes, key=lambda b: b[2] * b[3], reverse=True)[:14]
+#         rois = extract_rois(image, boxes)
+#         predictions = []
+
+#         for crop, (x, y, w, h) in rois:
+#             crop = normalize_digit(crop)
+#             if crop is None or crop.size == 0:
+#                 continue
+
+#             roi_pil = Image.fromarray(crop)
+#             roi_t = transform(roi_pil).unsqueeze(0).to(device)
+
+#             with torch.no_grad():
+#                 output = model(roi_t)
+#                 probs = F.softmax(output, dim=1)
+#                 conf, pred = torch.max(probs, dim=1)
+
+#             if conf.item() < 0.92:
+#                 continue
+
+#             predictions.append((x, y, w, h, pred.item(), conf.item()))
+
+#         predictions = sorted(predictions, key=lambda x: x[5], reverse=True)
+#         filtered = []
+#         for p in predictions:
+#             if not any(box_iou(p[:4], fp[:4]) > 0.25 for fp in filtered):
+#                 filtered.append(p)
+
+#         predictions = filtered[:8]
+#         predictions = sorted(predictions, key=lambda x: x[0])
+
+#         digits = [str(p[4]) for p in predictions]
+#         print(f"Predicted sequence: {''.join(digits)}")
+
+#         vis_img = image.copy()
+#         for (x, y, w, h, pred, conf) in predictions:
+#             cv2.rectangle(vis_img, (x, y), (x+w, y+h), (0, 255, 0), 1)
+#             cv2.putText(vis_img, str(pred), (x, y-5),
+#                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+
+#         save_path = f"graded_images/{img_path.name}"
+#         cv2.imwrite(save_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
+
+#         print(f"Saved result → {save_path}")
+
+def test2(model_name, model_path, test_dir: Path, config, device):
     # import os
 
     os.makedirs("graded_images", exist_ok=True)
@@ -302,25 +351,20 @@ def test(model_name, model_path, test_dir: Path, config, device):
         pil_img = Image.open(img_path).convert('RGB')
         image = np.array(pil_img)
 
-        all_boxes = []
+        boxes = load_the_f_image_and_test(str(img_path))
+        if not boxes:
+            print("No candidate regions found.")
+            continue
 
-        for scaled_img, scale in image_pyramid(image):
-            boxes = get_potential_regions(scaled_img)
-
-            for (x, y, w, h) in boxes:
-                all_boxes.append((
-                    int(x / scale),
-                    int(y / scale),
-                    int(w / scale),
-                    int(h / scale)
-                ))
-
-        boxes = simple_nms(all_boxes)
         rois = extract_rois(image, boxes)
         predictions = []
 
-        for roi, (x, y, w, h) in rois:
-            roi_pil = Image.fromarray(roi)
+        for crop, (x, y, w, h) in rois:
+            crop = normalize_digit(crop)
+            if crop is None or crop.size == 0:
+                continue
+
+            roi_pil = Image.fromarray(crop)
             roi_t = transform(roi_pil).unsqueeze(0).to(device)
 
             with torch.no_grad():
@@ -328,17 +372,25 @@ def test(model_name, model_path, test_dir: Path, config, device):
                 probs = F.softmax(output, dim=1)
                 conf, pred = torch.max(probs, dim=1)
 
-            if conf.item() < 0.6:
+            if conf.item() < 0.92:
                 continue
 
-            predictions.append((x, y, w, h, pred.item()))
+            predictions.append((x, y, w, h, pred.item(), conf.item()))
 
+        predictions = sorted(predictions, key=lambda x: x[5], reverse=True)
+        filtered = []
+        for p in predictions:
+            if not any(box_iou(p[:4], fp[:4]) > 0.25 for fp in filtered):
+                filtered.append(p)
+
+        predictions = filtered[:8]
         predictions = sorted(predictions, key=lambda x: x[0])
+
         digits = [str(p[4]) for p in predictions]
         print(f"Predicted sequence: {''.join(digits)}")
 
         vis_img = image.copy()
-        for (x, y, w, h, pred) in predictions:
+        for (x, y, w, h, pred, conf) in predictions:
             cv2.rectangle(vis_img, (x, y), (x+w, y+h), (0, 255, 0), 1)
             cv2.putText(vis_img, str(pred), (x, y-5),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
@@ -347,6 +399,7 @@ def test(model_name, model_path, test_dir: Path, config, device):
         cv2.imwrite(save_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
 
         print(f"Saved result → {save_path}")
+
 
 def main():
     with open('config.yaml', 'r') as file:
@@ -361,14 +414,52 @@ def main():
     if mode == 'train':
         if model_name == 'all':
             print("--- Starting Training for all models ---")
+            all_losses = {}
+            all_accs = {}
+            parameters = {}
             for m_name in config['model_configs']:
                 print(f"Training {m_name}")
                 m_config = config['model_configs'][m_name]
                 model = build_model(m_name, m_config)
-                train(model, m_name, config, device)
+                losses, accs = train(model, m_name, config, device)
+                all_losses[m_name] = losses
+                all_accs[m_name] = accs
+                parameters[m_name] = get_sum_model_parameters(model)
                 m_path = get_model_path(m_name)
                 metrics = evaluate(m_name, m_path, config, device)
                 print(f"Final Test Accuracy for {m_name}: {metrics['accuracy']:.4f}")
+            
+            # Plot comparisons
+            plt.figure(figsize=(10, 5))
+            plt.bar(parameters.keys(), parameters.values())
+            plt.xlabel('Models')
+            plt.ylabel('No. of trainable parameters')
+            plt.title('No. of trainable parameters for each model')
+            plt.xticks(rotation=45)
+            os.makedirs(RESULTS, exist_ok=True)
+            plt.savefig(os.path.join(RESULTS, 'count_of_parameters.png'))
+            plt.close()
+
+            plt.figure(figsize=(10, 5))
+            for name, losses in all_losses.items():
+                plt.plot(losses, label=name)
+            plt.xlabel("Epoch")
+            plt.ylabel("Loss")
+            plt.title("Training Loss Comparison")
+            plt.legend()
+            plt.savefig(os.path.join(RESULTS, 'curves_loss.png'))
+            plt.close()
+
+            plt.figure(figsize=(10, 5))
+            for name, accs in all_accs.items():
+                plt.plot(accs, label=name)
+            plt.xlabel("Epoch")
+            plt.ylabel("Accuracy")
+            plt.title("Training Accuracy Comparison")
+            plt.legend()
+            plt.savefig(os.path.join(RESULTS, 'curves_accuracy.png'))
+            plt.close()
+            
             return
 
         else:
@@ -387,7 +478,7 @@ def main():
         print("--- Starting Testing ---")
         model_config = config['model_configs'][model_name]
         model_path = get_model_path(model_name)
-        test(model_name=model_name, model_path=model_path, test_dir=TEST_DIR, config=config, device=get_device())
+        test2(model_name=model_name, model_path=model_path, test_dir=TEST_DIR, config=config, device=get_device())
         print("--- Completed Testing ---")
 
     

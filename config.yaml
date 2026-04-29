@@ -1,6 +1,6 @@
 CNN:
   name: all # VanillaCNN or ResNet or DACNN or VGG16 or all. all will work only in train mode
-  mode: train # test
+  mode: train # train or test
   # multiple_plots: True
   model_configs:
     VanillaCNN:
