@@ -4,7 +4,7 @@ from preprocess import SVHNDataset
 from model import VanillaCNN, ResNet, ResidualBlocks
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.optim import Adam
+from torch.optim import Adam, SGD
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from tqdm import tqdm
@@ -150,7 +150,7 @@ def train(model: nn.Module, model_name: str, config, device):
     epochs = model_config['epochs']
     lr = config['training_config']['lr']
     training_loader = build_dataloader(split='train', batch_size=config['training_config']['batch_size'], shuffle=config['training_config']['shuffle'], model_name=model_name)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss() # if model_config['loss'] == 'ce' else SGD()
     optim = Adam(model.parameters(), lr=lr)
     model = model.to(device)
     epoch_loss = []
@@ -241,6 +241,7 @@ def evaluate(model_name, model_path, config, device):
     cm = confusion_matrix(y_true, y_pred)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=range(10))
     disp.plot(cmap='Blues', values_format='d')
+    disp.ax_.set_title(f'Confusion matrix - {model_name}')
     plt.savefig(get_result_path(model_name, 'confusion_matrix'))
 
     y_true_bin = label_binarize(y_true, classes=range(10))
@@ -248,8 +249,9 @@ def evaluate(model_name, model_path, config, device):
     for i in range(10):
         prec, rec, _ = precision_recall_curve(y_true_bin[:, i], y_score[:, i])
         plt.plot(rec, prec, label=f'Digit {i}')
+        
     
-    plt.xlabel('Recall'); plt.ylabel('Precision'); plt.title('PR Curves')
+    plt.xlabel('Recall'); plt.ylabel('Precision'); plt.title(f'PR Curves - {model_name}')
     plt.legend(); plt.grid(True)
     plt.savefig(get_result_path(model_name, 'precision_recall_curve'))
     plt.close('all')
@@ -445,7 +447,7 @@ def main():
                 plt.plot(losses, label=name)
             plt.xlabel("Epoch")
             plt.ylabel("Loss")
-            plt.title("Training Loss Comparison")
+            plt.title(f"Training Loss Comparison - {model_name}")
             plt.legend()
             plt.savefig(os.path.join(RESULTS, 'curves_loss.png'))
             plt.close()
@@ -455,7 +457,7 @@ def main():
                 plt.plot(accs, label=name)
             plt.xlabel("Epoch")
             plt.ylabel("Accuracy")
-            plt.title("Training Accuracy Comparison")
+            plt.title(f"Training Accuracy Comparison - {model_name}")
             plt.legend()
             plt.savefig(os.path.join(RESULTS, 'curves_accuracy.png'))
             plt.close()

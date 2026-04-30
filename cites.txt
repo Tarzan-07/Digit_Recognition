@@ -6,3 +6,25 @@ pages = {531-535},
 title = {Handwritten Digit Recognition Using Convolutional Neural Networks and Big Data Processing},
 doi = {10.15308/Sinteza-2025-531-535}
 }
+
+@INPROCEEDINGS{10234977,
+  author={Anoop, R and Kiran, Niharika and Raj, Bhargav P and Kodipalli, Ashwini and Rao, Trupthi and Rohini, B R},
+  booktitle={2023 World Conference on Communication & Computing (WCONF)}, 
+  title={MNSIT Handwritten Digit Recognition Using Machine Learning Classification Algorithms}, 
+  year={2023},
+  volume={},
+  number={},
+  pages={1-5},
+  keywords={Support vector machines;Handwriting recognition;Machine learning algorithms;Text analysis;Text recognition;Banking;Classification algorithms;Random Forest Classifier;Decision Tree Classifier;Gini Index;Entropy;Handwritten Digit Recognition;K-Nearest Neighbor;Supports Vector Machine;Gaussian Naive Bayes;Ada Boosting;Bagging Classifier},
+  doi={10.1109/WCONF58270.2023.10234977}}
+
+@INPROCEEDINGS{10141703,
+  author={Paliwal, Mrinal and Soni, Punit and Chauhan, Sharad},
+  booktitle={2023 International Conference on Advancement in Computation & Computer Technologies (InCACCT)}, 
+  title={Digit Recognition using the Artificial Neural Network}, 
+  year={2023},
+  volume={},
+  number={},
+  pages={145-149},
+  keywords={Training;Handwriting recognition;Image recognition;Databases;Artificial neural networks;Programming;Feature extraction;Neural Network;Dataset;Python libraries;MNIST database},
+  doi={10.1109/InCACCT57535.2023.10141703}}
