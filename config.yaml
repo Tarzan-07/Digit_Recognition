@@ -1,6 +1,6 @@
 CNN:
-  name: all # VanillaCNN or ResNet or DACNN or VGG16 or all. all will work only in train mode
-  mode: train # train or test
+  name: ResNet # VanillaCNN or ResNet or DACNN or VGG16 or all. all will work only in train mode
+  mode: test # train or test
   # multiple_plots: True
   model_configs:
     VanillaCNN:
@@ -10,17 +10,21 @@ CNN:
       stride: 1
       padding: 'same'
       epochs: 10
+      loss: 'ce'
     ResNet:
       num_classes: 10
-      epochs: 8
+      epochs: 12
+      loss: 'ce'
     DACNN:
       num_classes: 10
       epochs: 12
       num_layers: 4
+      loss: 'ce'
     VGG16:
       num_classes: 11
       epochs: 8
       num_layers: 4
+      loss: 'ce'
   training_config:
     lr: 0.001
     batch_size: 64
