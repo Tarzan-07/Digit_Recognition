@@ -24,14 +24,21 @@ from sklearn.metrics import (
     ConfusionMatrixDisplay
 )
 from sklearn.preprocessing import label_binarize
+# from mser1 import (
+#     image_pyramid,
+#     get_potential_regions,
+#     extract_rois,
+#     simple_nms,
+#     normalize_digit
+# )
+# from mser2 import load_the_f_image_and_test
 from mser import (
-    image_pyramid,
-    get_potential_regions,
+    load_the_image_and_test,
     extract_rois,
-    simple_nms,
-    normalize_digit
+    normalize_digit,
+    filter_by_row,
+
 )
-from mser2 import load_the_f_image_and_test
 import cv2
 from dacnn import DACNN
 from vgg import VGG16Model
@@ -353,7 +360,7 @@ def test2(model_name, model_path, test_dir: Path, config, device):
         pil_img = Image.open(img_path).convert('RGB')
         image = np.array(pil_img)
 
-        boxes = load_the_f_image_and_test(str(img_path))
+        boxes = load_the_image_and_test(str(img_path))
         if not boxes:
             print("No candidate regions found.")
             continue

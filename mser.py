@@ -5,105 +5,8 @@ This performs the MSER to detect potential regions.
 import cv2
 import numpy as np
 from PIL import Image
-
-import cv2
-import numpy as np
-
-def normalize_digit(crop):
-    h, w = crop.shape[:2]
-
-    # make square
-    size = max(h, w)
-    square = np.zeros((size, size, 3), dtype=np.uint8)
-
-    # center the digit
-    y_offset = (size - h) // 2
-    x_offset = (size - w) // 2
-    square[y_offset:y_offset+h, x_offset:x_offset+w] = crop
-
-    # resize to model input
-    square = cv2.resize(square, (32, 32))
-
-    return square
-
-
-def image_pyramid(image, scales=[1.0, 0.8, 0.6, 0.4]):
-    for scale in scales:
-        h, w = image.shape[:2]
-        resized = cv2.resize(image, (int(w * scale), int(h * scale)))
-        yield resized, scale
-
-# def get_potential_regions(image):
-#     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-#     mser = cv2.MSER_create()
-
-#     regions, _ = mser.detectRegions(gray)
-
-#     boxes = []
-#     for p in regions:
-#         x, y, w, h = cv2.boundingRect(p)
-
-#         # filtering (VERY IMPORTANT)
-#         if w < 10 or h < 10:
-#             continue
-#         if w > 120 or h > 120:
-#             continue
-
-#         aspect_ratio = w / float(h)
-#         if aspect_ratio < 0.2 or aspect_ratio > 1.2:
-#             continue
-
-#         boxes.append((x, y, w, h))
-
-#     return boxes
-
-def get_potential_regions(image):
-    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-
-    # 🔥 improve contrast
-    gray = cv2.equalizeHist(gray)
-
-    # # 🔥 tuned MSER
-    # mser = cv2.MSER_create(
-    #     _min_area=30,
-    #     _max_area=3000,
-    #     _max_variation=0.25
-    # )
-
-    mser = cv2.MSER_create()
-
-    mser.setMinArea(30)
-    mser.setMaxArea(3000)
-    mser.setMaxVariation(0.25)
-
-    regions, _ = mser.detectRegions(gray)
-
-    boxes = []
-    for p in regions:
-        x, y, w, h = cv2.boundingRect(p)
-
-        area = w * h
-
-        # 🔥 better filtering
-        if area < 150 or area > 3000:
-            continue
-
-        aspect_ratio = w / float(h)
-
-        if aspect_ratio < 0.4 or aspect_ratio > 0.9:
-            continue
-
-        boxes.append((x, y, w, h))
-
-    return boxes
-
-
-# def extract_rois(image, boxes):
-#     rois = []
-#     for (x, y, w, h) in boxes:
-#         crop = image[y:y+h, x:x+w]
-#         rois.append((crop, (x, y, w, h)))
-#     return rois
+import os
+import matplotlib.pyplot as plt
 
 def extract_rois(image, boxes):
     rois = []
@@ -121,54 +24,150 @@ def extract_rois(image, boxes):
 
     return rois
 
+def normalize_digit(crop):
+    h, w = crop.shape[:2]
+    size = max(h, w)
+    square = np.zeros((size, size, 3), dtype=np.uint8)
+    y_offset = (size - h) // 2
+    x_offset = (size - w) // 2
+    square[y_offset:y_offset+h, x_offset:x_offset+w] = crop
+    square = cv2.resize(square, (32, 32))
 
-# def simple_nms(boxes, thresh=15):
-#     filtered = []
-#     for box in boxes:
-#         x, y, w, h = box
-#         keep = True
-#         for fx, fy, fw, fh in filtered:
-#             if abs(x - fx) < thresh and abs(y - fy) < thresh:
-#                 keep = False
-#                 break
-#         if keep:
-#             filtered.append(box)
-#     return filtered
+    return square
 
-
-def simple_nms(boxes, iou_thresh=0.5):
+def filter_by_row(boxes):
     if len(boxes) == 0:
         return []
 
-    boxes = np.array(boxes)
-    x1 = boxes[:,0]
-    y1 = boxes[:,1]
-    x2 = x1 + boxes[:,2]
-    y2 = y1 + boxes[:,3]
+    ys = np.array([y + h/2 for (x, y, w, h) in boxes])  # center y
+    hs = np.array([h for (_, _, _, h) in boxes])
 
-    areas = boxes[:,2] * boxes[:,3]
-    order = areas.argsort()[::-1]
+    mean_h = np.mean(hs)
+    bands = []
+    for i, y in enumerate(ys):
+        placed = False
+        for band in bands:
+            if abs(y - band[0]) < mean_h:
+                band.append(y)
+                placed = True
+                break
+        if not placed:
+            bands.append([y])
 
-    keep = []
+    best_band = max(bands, key=lambda b: len(b))
+    band_center = np.mean(best_band)
 
-    while order.size > 0:
-        i = order[0]
-        keep.append(tuple(boxes[i]))
+    filtered = []
+    for (x, y, w, h) in boxes:
+        cy = y + h/2
+        if abs(cy - band_center) < mean_h:
+            filtered.append((x, y, w, h))
 
-        xx1 = np.maximum(x1[i], x1[order[1:]])
-        yy1 = np.maximum(y1[i], y1[order[1:]])
-        xx2 = np.minimum(x2[i], x2[order[1:]])
-        yy2 = np.minimum(y2[i], y2[order[1:]])
+    return filtered
 
-        w = np.maximum(0, xx2 - xx1)
-        h = np.maximum(0, yy2 - yy1)
+def load_the_image_and_test(file):
+    image = cv2.imread(file)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
+    gray = clahe.apply(gray)
+    gray = cv2.GaussianBlur(gray, (3, 3), 0)
 
-        inter = w * h
-        iou = inter / (areas[i] + areas[order[1:]] - inter)
+    if np.mean(gray) < 120:
+        gray = cv2.bitwise_not(gray)
 
-        inds = np.where(iou < iou_thresh)[0]
-        order = order[inds + 1]
+    h_img, w_img = gray.shape
+    img_area = h_img * w_img
 
-    return keep
+    mser = cv2.MSER_create()
+    mser.setMinArea(int(0.001 * img_area))
+    mser.setMaxArea(int(0.15 * img_area)) 
 
+    regions, _ = mser.detectRegions(gray)
+    boxes = []
+    scores = []
 
+    for region in regions:
+        x, y, w, h = cv2.boundingRect(region.reshape(-1, 1, 2))
+
+        if w < 5 or h < 5:
+            continue
+
+        area = w * h
+        aspect_ratio = h / float(w)
+
+        if area < 40 or area > 0.08 * img_area:
+            continue
+        if not (0.5 < aspect_ratio < 8):
+            continue
+
+        boxes.append([x, y, w, h])
+        score = 1.0 - abs(aspect_ratio - 2.0) * 0.2
+        scores.append(score)
+
+    if len(boxes) > 0:
+        indices = cv2.dnn.NMSBoxes(boxes, scores, score_threshold=0.0, nms_threshold=0.5)
+        boxes = [boxes[i[0] if isinstance(i, (list, np.ndarray)) else i] for i in indices]
+    else:
+        boxes = []
+
+    def cluster_boxes(boxes, y_thresh=20):
+        boxes = sorted(boxes, key=lambda b: b[0])
+        clusters = []
+
+        for box in boxes:
+            x, y, w, h = box
+            placed = False
+
+            for cluster in clusters:
+                cx, cy, cw, ch = cluster[0]
+                if abs(y - cy) < y_thresh:
+                    cluster.append(box)
+                    placed = True
+                    break
+
+            if not placed:
+                clusters.append([box])
+
+        return clusters
+
+    def cluster_score(cluster):
+        xs = np.array([b[0] for b in cluster], dtype=np.float32)
+        ys = np.array([b[1] + b[3]/2 for b in cluster], dtype=np.float32)
+        hs = np.array([b[3] for b in cluster], dtype=np.float32)
+
+        if len(cluster) == 0:
+            return -1e9
+
+        y_jitter = np.std(ys) / (np.mean(hs) + 1e-6)
+        xs_sorted = np.sort(xs)
+        gaps = np.diff(xs_sorted) if len(xs_sorted) > 1 else np.array([0.0])
+        gap_jitter = np.std(gaps) / (np.mean(gaps) + 1e-6) if np.mean(gaps) > 0 else 0
+        return len(cluster) * 2.0 - y_jitter * 2.0 - gap_jitter * 1.5
+
+    boxes = filter_by_row(boxes)
+    clusters = cluster_boxes(boxes)
+    if len(clusters) > 0:
+        best_cluster = max(clusters, key=cluster_score)
+    else:
+        best_cluster = []
+    best_cluster = sorted(best_cluster, key=lambda b: b[0])
+
+    for x, y, w, h in best_cluster:
+        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+    os.makedirs("graded_images", exist_ok=True)
+    # save_path = os.path.join(
+    #     "graded_images",
+    #     f"{os.path.splitext(os.path.basename(file))[0]}_mser.png"
+    # )
+
+    plt.figure(figsize=(10, 6))
+    plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    plt.title(f"{file} - Detected digits: {len(best_cluster)}")
+    plt.axis("off")
+    # plt.savefig(save_path)
+    plt.show()
+
+    print(f"MSER raw: {len(regions)} | Final boxes: {len(best_cluster)}")
+
+    return best_cluster
